@@ -14,12 +14,12 @@ const SkillGapDiagnosisTool = () => {
     });
 
     const [quizData, setQuizData] = useState({
-        currentCategory: '',
-        currentSkill: '',
-        questions: [],
+        technologyQuizzes: [], // Array of quizzes for each technology
+        currentQuizIndex: 0,
         currentQuestionIndex: 0,
         answers: {},
-        skillScores: {}
+        skillScores: {},
+        totalQuestions: 0
     });
 
     const [isLoadingQuiz, setIsLoadingQuiz] = useState(false);
@@ -269,66 +269,143 @@ const SkillGapDiagnosisTool = () => {
         'git': 'Git/Version Control',
         'aws': 'AWS/Cloud',
         'docker': 'Docker/Kubernetes',
-        'testing': 'Testing/QA'
+        'testing': 'Testing/QA',
+        'r': 'R Programming',
+        'ml': 'Machine Learning',
+        'stats': 'Statistics',
+        'pandas': 'Pandas/NumPy',
+        'visualization': 'Data Visualization',
+        'deeplearning': 'Deep Learning',
+        'bigdata': 'Big Data',
+        'nlp': 'NLP',
+        'analytics': 'Product Analytics',
+        'roadmap': 'Roadmap Planning',
+        'userresearch': 'User Research',
+        'agile': 'Agile/Scrum',
+        'wireframing': 'Wireframing',
+        'abtesting': 'A/B Testing',
+        'jira': 'Jira',
+        'strategy': 'Product Strategy',
+        'stakeholder': 'Stakeholder Management',
+        'figma': 'Figma',
+        'sketch': 'Sketch',
+        'adobe': 'Adobe XD',
+        'prototyping': 'Prototyping',
+        'designsystems': 'Design Systems',
+        'usability': 'Usability Testing',
+        'interaction': 'Interaction Design',
+        'htmlcss': 'HTML/CSS',
+        'accessibility': 'Accessibility',
+        'seo': 'SEO',
+        'sem': 'SEM',
+        'email': 'Email Marketing',
+        'content': 'Content Marketing',
+        'automation': 'Marketing Automation',
+        'cro': 'CRO',
+        'ppc': 'PPC',
+        'facebook': 'Facebook Ads',
+        'excel': 'Excel',
+        'powerbi': 'Power BI',
+        'tableau': 'Tableau',
+        'requirements': 'Requirements Gathering',
+        'processmodeling': 'Process Modeling',
+        'financial': 'Financial Analysis',
+        'documentation': 'Documentation'
     };
 
-    // Get questions from GitHub JSON based on selected technologies
-    const getQuestionsFromGithub = (skill, technologies) => {
+    // Get questions from GitHub JSON based on selected technology and difficulty level
+    const getQuestionsFromGithub = (techId, difficulty, numberOfQuestions) => {
         if (!githubQuestions || !githubQuestions.categories) {
             return null;
         }
 
-        // Try to find matching category based on selected technologies
-        for (const techId of technologies) {
-            const categoryName = techToCategoryMap[techId];
-            if (categoryName) {
-                const category = githubQuestions.categories.find(
-                    cat => cat.category.toLowerCase() === categoryName.toLowerCase()
+        // Map the tech ID to category name
+        const categoryName = techToCategoryMap[techId];
+        if (!categoryName) {
+            return null;
+        }
+
+        // Find the matching category
+        const category = githubQuestions.categories.find(
+            cat => cat.category.toLowerCase() === categoryName.toLowerCase()
+        );
+        
+        if (category && category.questions) {
+            // Filter questions by difficulty level based on user experience
+            let filteredQuestions = category.questions;
+            
+            // Map experience level to difficulty
+            if (userData.experience === 'entry') {
+                filteredQuestions = category.questions.filter(q => 
+                    q.difficulty && q.difficulty.toLowerCase() === 'beginner'
                 );
-                
-                if (category && category.questions) {
-                    // Format questions to match our internal structure
-                    return category.questions.slice(0, 5).map(q => ({
-                        question: q.question,
-                        options: q.options.reduce((acc, opt, idx) => {
-                            const letter = String.fromCharCode(65 + idx); // A, B, C, D
-                            acc[letter] = opt;
-                            return acc;
-                        }, {}),
-                        correct: q.correctAnswer,
-                        difficulty: q.difficulty,
-                        explanation: q.explanation
-                    }));
-                }
+            } else if (userData.experience === 'intermediate') {
+                filteredQuestions = category.questions.filter(q => 
+                    q.difficulty && q.difficulty.toLowerCase() === 'intermediate'
+                );
+            } else if (userData.experience === 'senior' || userData.experience === 'expert') {
+                filteredQuestions = category.questions.filter(q => 
+                    q.difficulty && q.difficulty.toLowerCase() === 'advanced'
+                );
             }
+
+            // If no questions match the difficulty, fall back to all questions
+            if (filteredQuestions.length === 0) {
+                filteredQuestions = category.questions;
+            }
+
+            // Randomly select the required number of questions
+            const shuffled = [...filteredQuestions].sort(() => 0.5 - Math.random());
+            const selected = shuffled.slice(0, numberOfQuestions);
+            
+            // Format questions to match our internal structure
+            return selected.map(q => ({
+                question: q.question,
+                options: q.options.reduce((acc, opt, idx) => {
+                    const letter = String.fromCharCode(65 + idx);
+                    acc[letter] = opt;
+                    return acc;
+                }, {}),
+                correct: q.correctAnswer,
+                difficulty: q.difficulty || userData.experience,
+                explanation: q.explanation,
+                technology: techId
+            }));
         }
 
         return null;
     };
 
     // Generate quiz questions using Claude API with GitHub fallback
-    const generateQuizQuestions = async (skill, technologies) => {
+    const generateTechnologyQuizQuestions = async (techId, numberOfQuestions) => {
         // First, try to get questions from GitHub JSON
-        const githubQs = getQuestionsFromGithub(skill, technologies);
-        if (githubQs && githubQs.length > 0) {
-            console.log('Using questions from GitHub for:', skill);
+        const githubQs = getQuestionsFromGithub(techId, userData.experience, numberOfQuestions);
+        if (githubQs && githubQs.length >= numberOfQuestions) {
+            console.log(`Using ${githubQs.length} questions from GitHub for:`, techId);
             return githubQs;
         }
 
-        // If GitHub questions not available, use Claude API
-        const techContext = technologies.length > 0
-            ? `Focus on these technologies: ${technologies.join(', ')}.`
-            : '';
+        // If GitHub questions not available or insufficient, use Claude API
+        const techName = technologyOptions[userData.targetRole]?.find(t => t.id === techId)?.name || techId;
+        
+        // Determine difficulty based on experience level
+        let difficultyLevels;
+        if (userData.experience === 'entry') {
+            difficultyLevels = 'beginner';
+        } else if (userData.experience === 'intermediate') {
+            difficultyLevels = 'intermediate';
+        } else {
+            difficultyLevels = 'advanced';
+        }
 
-        const prompt = `Generate 5 multiple-choice quiz questions to assess proficiency in "${skill}" for a ${userData.targetRole}. ${techContext}
+        const prompt = `Generate ${numberOfQuestions} multiple-choice quiz questions to assess proficiency in "${techName}" for a ${userData.targetRole} position with ${userData.experience} level experience.
 
-For each question, provide:
-1. A practical, scenario-based question
-2. Four answer options (A, B, C, D)
-3. The correct answer (letter only)
-4. A difficulty level (beginner, intermediate, advanced)
-
-Make questions realistic and job-relevant. Mix difficulty levels: 2 beginner, 2 intermediate, 1 advanced.
+Requirements:
+- All questions must be at ${difficultyLevels} difficulty level
+- Each question should be practical and scenario-based
+- Provide four answer options (A, B, C, D)
+- Include the correct answer (letter only)
+- Mark difficulty as "${difficultyLevels}"
 
 Respond ONLY with valid JSON in this exact format:
 {
@@ -342,7 +419,7 @@ Respond ONLY with valid JSON in this exact format:
         "D": "Fourth option"
       },
       "correct": "A",
-      "difficulty": "beginner"
+      "difficulty": "${difficultyLevels}"
     }
   ]
 }`;
@@ -352,10 +429,12 @@ Respond ONLY with valid JSON in this exact format:
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
+                    "x-api-key": "YOUR_ANTHROPIC_API_KEY", // Replace with actual API key
+                    "anthropic-version": "2023-06-01"
                 },
                 body: JSON.stringify({
-                    model: "claude-sonnet-4-20250514",
-                    max_tokens: 1000,
+                    model: "claude-3-sonnet-20240229",
+                    max_tokens: 2000,
                     messages: [
                         { role: "user", content: prompt }
                     ],
@@ -369,22 +448,26 @@ Respond ONLY with valid JSON in this exact format:
             const jsonMatch = textContent.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
                 const parsed = JSON.parse(jsonMatch[0]);
-                return (parsed.questions || []).slice(0, 5);
+                const questions = (parsed.questions || []).slice(0, numberOfQuestions);
+                // Add technology ID to each question
+                return questions.map(q => ({ ...q, technology: techId }));
             }
 
             // Fallback questions if API fails
-            return getFallbackQuestions(skill);
+            return getFallbackQuestions(techName, numberOfQuestions, difficultyLevels, techId);
         } catch (error) {
             console.error("Error generating quiz:", error);
-            return getFallbackQuestions(skill);
+            return getFallbackQuestions(techName, numberOfQuestions, userData.experience, techId);
         }
     };
 
-    const getFallbackQuestions = (skill) => {
-        // Fallback questions in case both GitHub and API fail
-        return [
-            {
-                question: `What is your experience level with ${skill}?`,
+    const getFallbackQuestions = (techName, numberOfQuestions, difficulty, techId) => {
+        const fallbackQuestions = [];
+        const difficulties = [difficulty, difficulty, difficulty, difficulty, difficulty];
+        
+        for (let i = 0; i < numberOfQuestions; i++) {
+            fallbackQuestions.push({
+                question: `What is your experience level with ${techName}? (Question ${i + 1})`,
                 options: {
                     A: "No experience - I'm just starting to learn",
                     B: "Basic knowledge - I can handle simple tasks",
@@ -392,81 +475,64 @@ Respond ONLY with valid JSON in this exact format:
                     D: "Advanced - I can mentor others in this skill"
                 },
                 correct: "D",
-                difficulty: "beginner"
-            },
-            {
-                question: `How would you rate your practical application of ${skill}?`,
-                options: {
-                    A: "I've only studied theory, no practical experience",
-                    B: "I've done a few tutorials or small projects",
-                    C: "I've completed multiple real projects",
-                    D: "I've led projects and made architectural decisions"
-                },
-                correct: "D",
-                difficulty: "intermediate"
-            },
-            {
-                question: `In a professional setting, how comfortable are you with ${skill}?`,
-                options: {
-                    A: "I would need significant guidance and support",
-                    B: "I can handle basic tasks with some assistance",
-                    C: "I can work independently on most tasks",
-                    D: "I can handle complex challenges and train others"
-                },
-                correct: "D",
-                difficulty: "intermediate"
-            },
-            {
-                question: `How do you stay updated with ${skill}?`,
-                options: {
-                    A: "I haven't started learning about it yet",
-                    B: "I occasionally read articles or watch videos",
-                    C: "I regularly follow courses and practice",
-                    D: "I contribute to community, attend conferences, read docs"
-                },
-                correct: "D",
-                difficulty: "beginner"
-            },
-            {
-                question: `What best describes your problem-solving ability with ${skill}?`,
-                options: {
-                    A: "I struggle with basic concepts and need help often",
-                    B: "I can solve simple problems with references",
-                    C: "I can debug and solve most common issues",
-                    D: "I can optimize, architect, and solve complex problems"
-                },
-                correct: "D",
-                difficulty: "advanced"
-            }
-        ];
+                difficulty: difficulties[i % difficulties.length],
+                technology: techId
+            });
+        }
+        
+        return fallbackQuestions;
     };
 
     const startQuiz = async () => {
         setIsLoadingQuiz(true);
-        const skills = skillCategories[userData.targetRole];
-        const allSkills = [...skills['Technical Skills'], ...skills['Soft Skills']];
-
-        // Start with first skill
-        const firstSkill = allSkills[0];
-        const firstCategory = skills['Technical Skills'].includes(firstSkill) ? 'Technical Skills' : 'Soft Skills';
-
-        const questions = await generateQuizQuestions(firstSkill, userData.selectedTechnologies);
+        
+        const selectedTechs = userData.selectedTechnologies;
+        const numberOfTechs = selectedTechs.length;
+        
+        // Determine number of questions per technology
+        let questionsPerTech;
+        if (numberOfTechs === 1) {
+            questionsPerTech = 20; // 20 questions for single technology
+        } else {
+            questionsPerTech = 10; // 10 questions each for multiple technologies
+        }
+        
+        const totalQuestions = numberOfTechs * questionsPerTech;
+        
+        // Generate quizzes for each selected technology
+        const technologyQuizzes = [];
+        
+        for (const techId of selectedTechs) {
+            const techName = technologyOptions[userData.targetRole]?.find(t => t.id === techId)?.name || techId;
+            
+            const questions = await generateTechnologyQuizQuestions(techId, questionsPerTech);
+            
+            technologyQuizzes.push({
+                techId,
+                techName,
+                techIcon: technologyOptions[userData.targetRole]?.find(t => t.id === techId)?.icon || '💻',
+                questions,
+                score: 0,
+                completed: false
+            });
+        }
 
         setQuizData({
-            currentCategory: firstCategory,
-            currentSkill: firstSkill,
-            questions,
+            technologyQuizzes,
+            currentQuizIndex: 0,
             currentQuestionIndex: 0,
             answers: {},
-            skillScores: {}
+            skillScores: {},
+            totalQuestions
         });
 
         setIsLoadingQuiz(false);
         setStep('quiz');
     };
 
-    const handleQuizAnswer = async (answer) => {
-        const currentQuestion = quizData.questions[quizData.currentQuestionIndex];
+    const handleQuizAnswer = (answer) => {
+        const currentQuiz = quizData.technologyQuizzes[quizData.currentQuizIndex];
+        const currentQuestion = currentQuiz.questions[quizData.currentQuestionIndex];
         const isCorrect = answer === currentQuestion.correct;
 
         // Calculate points based on difficulty
@@ -478,59 +544,56 @@ Respond ONLY with valid JSON in this exact format:
 
         const questionPoints = points[currentQuestion.difficulty] || 1;
 
+        const answerKey = `${currentQuiz.techId}_q${quizData.currentQuestionIndex}`;
+        
         const updatedAnswers = {
             ...quizData.answers,
-            [`${quizData.currentSkill}_${quizData.currentQuestionIndex}`]: {
+            [answerKey]: {
                 answer,
                 correct: currentQuestion.correct,
                 isCorrect,
-                points: questionPoints
+                points: questionPoints,
+                techId: currentQuiz.techId,
+                questionIndex: quizData.currentQuestionIndex
             }
         };
 
-        // Check if this was the last question for current skill
-        if (quizData.currentQuestionIndex === quizData.questions.length - 1) {
-            // Calculate score for this skill
-            const skillAnswers = Object.keys(updatedAnswers)
-                .filter(key => key.startsWith(quizData.currentSkill))
+        // Check if this was the last question for current technology
+        if (quizData.currentQuestionIndex === currentQuiz.questions.length - 1) {
+            // Calculate score for this technology
+            const techAnswers = Object.keys(updatedAnswers)
+                .filter(key => key.startsWith(currentQuiz.techId))
                 .map(key => updatedAnswers[key]);
 
-            const totalPoints = skillAnswers.reduce((sum, a) => sum + a.points, 0);
-            const maxPoints = 10; // 2*1 + 2*2 + 1*3 = 9, rounded to 10
+            const totalPoints = techAnswers.reduce((sum, a) => sum + a.points, 0);
+            const maxPoints = currentQuiz.questions.length * 3; // Max 3 points per question
             const score = Math.min(5, (totalPoints / maxPoints) * 5);
 
             const updatedSkillScores = {
                 ...quizData.skillScores,
-                [quizData.currentSkill]: score
+                [currentQuiz.techId]: score
             };
 
-            // Move to next skill
-            const skills = skillCategories[userData.targetRole];
-            const allSkills = [...skills['Technical Skills'], ...skills['Soft Skills']];
-            const currentSkillIndex = allSkills.indexOf(quizData.currentSkill);
+            // Mark current quiz as completed
+            const updatedQuizzes = [...quizData.technologyQuizzes];
+            updatedQuizzes[quizData.currentQuizIndex].completed = true;
+            updatedQuizzes[quizData.currentQuizIndex].score = score;
 
-            if (currentSkillIndex < allSkills.length - 1) {
-                // Load next skill
-                const nextSkill = allSkills[currentSkillIndex + 1];
-                const nextCategory = skills['Technical Skills'].includes(nextSkill) ? 'Technical Skills' : 'Soft Skills';
-
-                setIsLoadingQuiz(true);
-
-                const nextQuestions = await generateQuizQuestions(nextSkill, userData.selectedTechnologies);
-
+            // Move to next technology or finish
+            if (quizData.currentQuizIndex < quizData.technologyQuizzes.length - 1) {
                 setQuizData({
-                    currentCategory: nextCategory,
-                    currentSkill: nextSkill,
-                    questions: nextQuestions,
+                    ...quizData,
+                    technologyQuizzes: updatedQuizzes,
+                    currentQuizIndex: quizData.currentQuizIndex + 1,
                     currentQuestionIndex: 0,
                     answers: updatedAnswers,
                     skillScores: updatedSkillScores
                 });
-                setIsLoadingQuiz(false);
             } else {
                 // Quiz complete
                 setQuizData({
                     ...quizData,
+                    technologyQuizzes: updatedQuizzes,
                     answers: updatedAnswers,
                     skillScores: updatedSkillScores
                 });
@@ -538,7 +601,7 @@ Respond ONLY with valid JSON in this exact format:
                 setStep('results');
             }
         } else {
-            // Next question in same skill
+            // Next question in same technology
             setQuizData({
                 ...quizData,
                 currentQuestionIndex: quizData.currentQuestionIndex + 1,
@@ -548,41 +611,43 @@ Respond ONLY with valid JSON in this exact format:
     };
 
     const analyzeQuizResults = (skillScores) => {
-        const skills = skillCategories[userData.targetRole];
         const benchmark = benchmarkScores[userData.experience];
-
+        
         let gaps = [];
         let strengths = [];
-        let categoryScores = {};
-
-        Object.entries(skills).forEach(([category, skillList]) => {
-            let categoryTotal = 0;
-            let categoryGaps = [];
-
-            skillList.forEach(skill => {
-                const rating = skillScores[skill] || 0;
-                categoryTotal += rating;
-
-                if (rating < benchmark.min) {
-                    gaps.push({
-                        skill,
-                        category,
-                        current: rating.toFixed(1),
-                        target: benchmark.target,
-                        gap: (benchmark.target - rating).toFixed(1),
-                        priority: rating <= 2 ? 'Critical' : 'Important'
-                    });
-                    categoryGaps.push(skill);
-                } else if (rating >= benchmark.target) {
-                    strengths.push({ skill, category, rating: rating.toFixed(1) });
-                }
-            });
-
-            categoryScores[category] = {
-                average: (categoryTotal / skillList.length).toFixed(2),
-                gaps: categoryGaps.length,
-                total: skillList.length
+        
+        // Get technology details
+        const selectedTechs = userData.selectedTechnologies;
+        const techDetails = selectedTechs.map(techId => {
+            const tech = technologyOptions[userData.targetRole]?.find(t => t.id === techId);
+            return {
+                id: techId,
+                name: tech?.name || techId,
+                icon: tech?.icon || '💻'
             };
+        });
+
+        techDetails.forEach(tech => {
+            const rating = skillScores[tech.id] || 0;
+            
+            if (rating < benchmark.min) {
+                gaps.push({
+                    skill: tech.name,
+                    technology: tech.id,
+                    icon: tech.icon,
+                    current: rating.toFixed(1),
+                    target: benchmark.target,
+                    gap: (benchmark.target - rating).toFixed(1),
+                    priority: rating <= 2 ? 'Critical' : 'Important'
+                });
+            } else if (rating >= benchmark.target) {
+                strengths.push({ 
+                    skill: tech.name, 
+                    technology: tech.id,
+                    icon: tech.icon,
+                    rating: rating.toFixed(1) 
+                });
+            }
         });
 
         gaps.sort((a, b) => b.gap - a.gap);
@@ -593,85 +658,90 @@ Respond ONLY with valid JSON in this exact format:
         setResults({
             gaps,
             strengths,
-            categoryScores,
             overallAverage,
             benchmark,
             totalSkills: allScores.length,
-            skillScores
+            skillScores,
+            techDetails
         });
     };
 
-    const getLearningResources = (skill, technologies) => {
+    const getLearningResources = (technology) => {
         // Technology-specific resources
         const techResources = {
             'javascript': [
                 { name: 'JavaScript.info', type: 'Tutorial', url: 'https://javascript.info' },
-                { name: 'freeCodeCamp JS', type: 'Course', url: 'https://www.freecodecamp.org' }
+                { name: 'freeCodeCamp JS', type: 'Course', url: 'https://www.freecodecamp.org/learn/javascript-algorithms-and-data-structures/' },
+                { name: 'MDN Web Docs', type: 'Documentation', url: 'https://developer.mozilla.org/en-US/docs/Web/JavaScript' }
             ],
             'python': [
-                { name: 'Python.org Tutorial', type: 'Official', url: 'https://docs.python.org/3/tutorial' },
-                { name: 'Real Python', type: 'Platform', url: 'https://realpython.com' }
+                { name: 'Python.org Tutorial', type: 'Official', url: 'https://docs.python.org/3/tutorial/' },
+                { name: 'Real Python', type: 'Platform', url: 'https://realpython.com' },
+                { name: 'Automate the Boring Stuff', type: 'Book', url: 'https://automatetheboringstuff.com' }
+            ],
+            'java': [
+                { name: 'Java Tutorials', type: 'Official', url: 'https://docs.oracle.com/javase/tutorial/' },
+                { name: 'Baeldung', type: 'Tutorial', url: 'https://www.baeldung.com' },
+                { name: 'Java Code Geeks', type: 'Articles', url: 'https://www.javacodegeeks.com' }
             ],
             'react': [
                 { name: 'React Docs', type: 'Official', url: 'https://react.dev' },
-                { name: 'Scrimba React Course', type: 'Interactive', url: 'https://scrimba.com' }
+                { name: 'Scrimba React Course', type: 'Interactive', url: 'https://scrimba.com/learn/learnreact' },
+                { name: 'Epic React', type: 'Course', url: 'https://epicreact.dev' }
+            ],
+            'nodejs': [
+                { name: 'Node.js Docs', type: 'Official', url: 'https://nodejs.org/en/docs/' },
+                { name: 'The Odin Project', type: 'Curriculum', url: 'https://www.theodinproject.com' },
+                { name: 'Node School', type: 'Interactive', url: 'https://nodeschool.io' }
+            ],
+            'sql': [
+                { name: 'SQL Tutorial', type: 'Tutorial', url: 'https://www.w3schools.com/sql/' },
+                { name: 'Mode SQL Tutorial', type: 'Interactive', url: 'https://mode.com/sql-tutorial/' },
+                { name: 'SQLZoo', type: 'Practice', url: 'https://sqlzoo.net' }
+            ],
+            'git': [
+                { name: 'Git Documentation', type: 'Official', url: 'https://git-scm.com/doc' },
+                { name: 'GitHub Learning Lab', type: 'Interactive', url: 'https://lab.github.com' },
+                { name: 'Atlassian Git Tutorial', type: 'Tutorial', url: 'https://www.atlassian.com/git/tutorials' }
             ],
             'aws': [
-                { name: 'AWS Training', type: 'Official', url: 'https://aws.amazon.com/training' },
-                { name: 'A Cloud Guru', type: 'Platform', url: 'https://acloudguru.com' }
+                { name: 'AWS Training', type: 'Official', url: 'https://aws.amazon.com/training/' },
+                { name: 'A Cloud Guru', type: 'Platform', url: 'https://acloudguru.com' },
+                { name: 'AWS Certified Solutions', type: 'Course', url: 'https://www.coursera.org/aws-certifications' }
             ],
-            'figma': [
-                { name: 'Figma Tutorial', type: 'Official', url: 'https://www.figma.com/resources/learn-design' },
-                { name: 'Designlab', type: 'Course', url: 'https://designlab.com' }
+            'docker': [
+                { name: 'Docker Documentation', type: 'Official', url: 'https://docs.docker.com' },
+                { name: 'Docker Curriculum', type: 'Tutorial', url: 'https://docker-curriculum.com' },
+                { name: 'Play with Docker', type: 'Interactive', url: 'https://labs.play-with-docker.com' }
+            ],
+            'testing': [
+                { name: 'Jest Docs', type: 'Official', url: 'https://jestjs.io/docs/getting-started' },
+                { name: 'Testing Library', type: 'Docs', url: 'https://testing-library.com/docs/' },
+                { name: 'Cypress Docs', type: 'Official', url: 'https://docs.cypress.io' }
             ]
         };
 
-        // General skill resources
-        const skillResources = {
-            'Programming Fundamentals': [
-                { name: 'CS50', type: 'Course', url: 'https://cs50.harvard.edu' },
-                { name: 'The Odin Project', type: 'Curriculum', url: 'https://www.theodinproject.com' }
-            ],
-            'Data Structures & Algorithms': [
-                { name: 'LeetCode', type: 'Practice', url: 'https://leetcode.com' },
-                { name: 'AlgoExpert', type: 'Course', url: 'https://www.algoexpert.io' }
-            ],
-            'Machine Learning': [
-                { name: 'Andrew Ng ML Course', type: 'Course', url: 'https://www.coursera.org/learn/machine-learning' },
-                { name: 'Fast.ai', type: 'Practical', url: 'https://www.fast.ai' }
-            ],
-            'default': [
-                { name: 'Coursera', type: 'Platform', url: 'https://www.coursera.org' },
-                { name: 'Udemy', type: 'Platform', url: 'https://www.udemy.com' },
-                { name: 'YouTube', type: 'Video', url: 'https://www.youtube.com' }
-            ]
-        };
+        // Default resources for any technology
+        const defaultResources = [
+            { name: 'Coursera', type: 'Platform', url: 'https://www.coursera.org' },
+            { name: 'Udemy', type: 'Platform', url: 'https://www.udemy.com' },
+            { name: 'YouTube', type: 'Video', url: 'https://www.youtube.com' }
+        ];
 
-        // Get tech-specific resources if available
-        const techSpecific = technologies
-            .map(tech => techResources[tech])
-            .filter(Boolean)
-            .flat()
-            .slice(0, 2);
-
-        // Get skill-specific resources
-        const skillSpecific = skillResources[skill] || skillResources['default'];
-
-        // Combine and deduplicate
-        const combined = [...techSpecific, ...skillSpecific];
-        return combined.slice(0, 3);
+        // Return tech-specific resources if available, otherwise default
+        return techResources[technology] || defaultResources;
     };
 
     const IntroStep = () => (
         <div className="max-w-3xl mx-auto text-center mt-10">
             <div className="bg-gradient-to-r from-emerald-700 to-emerald-600 text-white p-8 rounded-2xl mb-8 shadow-xl">
                 <Brain className="w-16 h-16 mx-auto mb-4" />
-                <h1 className="text-4xl font-bold mb-4">AI-Powered Skill Gap Assessment</h1>
-                <p className="text-xl">Take adaptive quizzes to identify your skill gaps and get personalized learning paths</p>
+                <h1 className="text-4xl font-bold mb-4">AI-Powered Technology Skills Assessment</h1>
+                <p className="text-xl">Test your knowledge with adaptive quizzes tailored to your experience level</p>
                 
                 {loadingGithubData && (
                     <div className="mt-4 bg-white/20 px-4 py-2 rounded-lg inline-block">
-                        <p className="text-sm">Loading question bank...</p>
+                        <p className="text-sm animate-pulse">Loading question bank...</p>
                     </div>
                 )}
                 
@@ -683,7 +753,7 @@ Respond ONLY with valid JSON in this exact format:
                 
                 {githubQuestions && !loadingGithubData && (
                     <div className="mt-4 bg-emerald-700/30 px-4 py-2 rounded-lg inline-block">
-                        <p className="text-sm">✓ Question bank loaded successfully</p>
+                        <p className="text-sm">✓ {githubQuestions.categories?.length || 0} technology categories loaded</p>
                     </div>
                 )}
             </div>
@@ -691,18 +761,18 @@ Respond ONLY with valid JSON in this exact format:
             <div className="grid md:grid-cols-3 gap-6 mb-8">
                 <div className="bg-white p-6 rounded-xl shadow-md border-2 border-emerald-100">
                     <Code className="w-12 h-12 text-emerald-700 mx-auto mb-3" />
-                    <h3 className="font-bold text-lg mb-2 text-gray-800">Choose Technologies</h3>
-                    <p className="text-gray-600">Select the tech stack you want to assess</p>
+                    <h3 className="font-bold text-lg mb-2 text-gray-800">Select Technologies</h3>
+                    <p className="text-gray-600">Choose one technology for 20 questions, or multiple for 10 questions each</p>
                 </div>
                 <div className="bg-white p-6 rounded-xl shadow-md border-2 border-emerald-100">
                     <Zap className="w-12 h-12 text-emerald-600 mx-auto mb-3" />
-                    <h3 className="font-bold text-lg mb-2 text-gray-800">AI-Generated Quizzes</h3>
-                    <p className="text-gray-600">Take adaptive questions for each skill</p>
+                    <h3 className="font-bold text-lg mb-2 text-gray-800">Experience-Based</h3>
+                    <p className="text-gray-600">Questions tailored to your {userData.experience || 'selected'} level</p>
                 </div>
                 <div className="bg-white p-6 rounded-xl shadow-md border-2 border-emerald-100">
                     <Target className="w-12 h-12 text-emerald-700 mx-auto mb-3" />
-                    <h3 className="font-bold text-lg mb-2 text-gray-800">Personalized Results</h3>
-                    <p className="text-gray-600">Get detailed insights and learning roadmap</p>
+                    <h3 className="font-bold text-lg mb-2 text-gray-800">Detailed Results</h3>
+                    <p className="text-gray-600">Get personalized feedback and learning resources</p>
                 </div>
             </div>
 
@@ -764,10 +834,10 @@ Respond ONLY with valid JSON in this exact format:
                         className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600"
                     >
                         <option value="">Select level...</option>
-                        <option value="entry">Entry Level (0-2 years)</option>
-                        <option value="intermediate">Intermediate (3-5 years)</option>
-                        <option value="senior">Senior (6-10 years)</option>
-                        <option value="expert">Expert (10+ years)</option>
+                        <option value="entry">Entry Level (0-2 years) - Beginner questions</option>
+                        <option value="intermediate">Intermediate (3-5 years) - Intermediate questions</option>
+                        <option value="senior">Senior (6-10 years) - Advanced questions</option>
+                        <option value="expert">Expert (10+ years) - Advanced questions</option>
                     </select>
                 </div>
             </div>
@@ -813,10 +883,23 @@ Respond ONLY with valid JSON in this exact format:
             }
         };
 
+        const getQuestionsCount = () => {
+            const count = userData.selectedTechnologies.length;
+            if (count === 0) return 0;
+            if (count === 1) return 20;
+            return count * 10;
+        };
+
         return (
             <div className="max-w-4xl mx-auto bg-white p-8 rounded-2xl shadow-xl mt-10">
                 <h2 className="text-3xl font-bold mb-2 text-emerald-700">Select Technologies</h2>
-                <p className="text-gray-600 mb-6">Choose the technologies you want to focus on (optional - select all relevant ones)</p>
+                <p className="text-gray-600 mb-6">
+                    Choose technologies to assess. {userData.selectedTechnologies.length === 1 
+                        ? '✓ Single technology selected: You will receive 20 questions' 
+                        : userData.selectedTechnologies.length > 1 
+                        ? `✓ ${userData.selectedTechnologies.length} technologies selected: You will receive 10 questions each (${getQuestionsCount()} total)` 
+                        : 'Select one technology for 20 questions, or multiple for 10 questions each'}
+                </p>
 
                 <div className="grid md:grid-cols-3 gap-4 mb-8">
                     {techs.map(tech => (
@@ -844,7 +927,9 @@ Respond ONLY with valid JSON in this exact format:
                 <div className="bg-emerald-50 p-4 rounded-lg mb-6">
                     <p className="text-sm text-emerald-700">
                         <strong>Selected: {userData.selectedTechnologies.length} technologies</strong>
-                        {userData.selectedTechnologies.length === 0 && " - You can skip this or select technologies for more focused questions"}
+                        {userData.selectedTechnologies.length === 0 && " - Please select at least one technology"}
+                        {userData.selectedTechnologies.length === 1 && " - You will get 20 questions at your experience level"}
+                        {userData.selectedTechnologies.length > 1 && ` - You will get 10 questions per technology (${userData.selectedTechnologies.length * 10} total) at your experience level`}
                     </p>
                 </div>
 
@@ -857,9 +942,14 @@ Respond ONLY with valid JSON in this exact format:
                     </button>
                     <button
                         onClick={startQuiz}
-                        className="flex-1 bg-gradient-to-r from-emerald-700 to-emerald-600 hover:from-emerald-600 hover:to-emerald-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 hover:scale-[1.02]"
+                        disabled={userData.selectedTechnologies.length === 0}
+                        className={`flex-1 px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 hover:scale-[1.02] ${
+                            userData.selectedTechnologies.length === 0
+                                ? 'bg-gray-400 cursor-not-allowed'
+                                : 'bg-gradient-to-r from-emerald-700 to-emerald-600 hover:from-emerald-600 hover:to-emerald-500 text-white'
+                        }`}
                     >
-                        Start Quiz Assessment
+                        Start Quiz Assessment ({getQuestionsCount()} questions)
                     </button>
                 </div>
             </div>
@@ -872,7 +962,9 @@ Respond ONLY with valid JSON in this exact format:
                 <div className="max-w-2xl mx-auto bg-white p-12 rounded-2xl shadow-xl text-center mt-10">
                     <Brain className="w-16 h-16 text-emerald-700 mx-auto mb-4 animate-pulse" />
                     <h3 className="text-2xl font-bold mb-2 text-gray-800">Generating AI Questions...</h3>
-                    <p className="text-gray-600">Creating personalized quiz for {quizData.currentSkill}</p>
+                    <p className="text-gray-600">
+                        Creating {userData.selectedTechnologies.length === 1 ? '20' : '10'} questions for each technology at your experience level
+                    </p>
                     <div className="mt-6 w-full bg-gray-200 rounded-full h-2">
                         <div className="bg-emerald-600 h-2 rounded-full animate-pulse" style={{ width: '60%' }}></div>
                     </div>
@@ -880,26 +972,37 @@ Respond ONLY with valid JSON in this exact format:
             );
         }
 
-        const currentQuestion = quizData.questions[quizData.currentQuestionIndex];
-        const skills = skillCategories[userData.targetRole];
-        const allSkills = [...skills['Technical Skills'], ...skills['Soft Skills']];
-        const currentSkillIndex = allSkills.indexOf(quizData.currentSkill);
-        const totalQuestions = allSkills.length * 5;
-        const currentQuestionNumber = currentSkillIndex * 5 + quizData.currentQuestionIndex + 1;
-        const progress = (currentQuestionNumber / totalQuestions) * 100;
+        if (quizData.technologyQuizzes.length === 0) {
+            return null;
+        }
+
+        const currentQuiz = quizData.technologyQuizzes[quizData.currentQuizIndex];
+        const currentQuestion = currentQuiz.questions[quizData.currentQuestionIndex];
+        
+        // Calculate progress
+        const questionsPerTech = currentQuiz.questions.length;
+        const completedTechs = quizData.currentQuizIndex;
+        const completedQuestionsInCurrentTech = quizData.currentQuestionIndex;
+        const totalCompletedQuestions = (completedTechs * questionsPerTech) + completedQuestionsInCurrentTech;
+        const progress = (totalCompletedQuestions / quizData.totalQuestions) * 100;
 
         return (
             <div className="max-w-3xl mx-auto mt-10">
                 {/* Progress Header */}
                 <div className="bg-white p-6 rounded-2xl shadow-xl mb-6">
                     <div className="flex justify-between items-center mb-3">
-                        <div>
-                            <h3 className="text-xl font-bold text-emerald-700">{quizData.currentSkill}</h3>
-                            <p className="text-sm text-gray-600">{quizData.currentCategory}</p>
+                        <div className="flex items-center gap-2">
+                            <span className="text-3xl">{currentQuiz.techIcon}</span>
+                            <div>
+                                <h3 className="text-xl font-bold text-emerald-700">{currentQuiz.techName}</h3>
+                                <p className="text-sm text-gray-600">
+                                    Technology {quizData.currentQuizIndex + 1} of {quizData.technologyQuizzes.length}
+                                </p>
+                            </div>
                         </div>
                         <div className="text-right">
                             <div className="text-2xl font-bold text-emerald-600">
-                                {currentQuestionNumber}/{totalQuestions}
+                                {totalCompletedQuestions + 1}/{quizData.totalQuestions}
                             </div>
                             <p className="text-xs text-gray-600">Questions</p>
                         </div>
@@ -909,6 +1012,11 @@ Respond ONLY with valid JSON in this exact format:
                             className="bg-gradient-to-r from-emerald-700 to-emerald-600 h-3 rounded-full transition-all duration-500"
                             style={{ width: `${progress}%` }}
                         ></div>
+                    </div>
+                    <div className="flex justify-between mt-2 text-xs text-gray-500">
+                        <span>Started</span>
+                        <span>In Progress</span>
+                        <span>Complete</span>
                     </div>
                 </div>
 
@@ -922,7 +1030,7 @@ Respond ONLY with valid JSON in this exact format:
                             <div className="flex items-center gap-2 mb-2">
                                 <Clock className="w-4 h-4 text-gray-500" />
                                 <span className="text-xs uppercase tracking-wide text-gray-500 font-semibold">
-                                    {currentQuestion.difficulty}
+                                    {currentQuestion.difficulty} • {currentQuiz.techName}
                                 </span>
                             </div>
                             <h4 className="text-xl font-semibold text-gray-800 leading-relaxed">
@@ -952,7 +1060,7 @@ Respond ONLY with valid JSON in this exact format:
 
                     <div className="mt-6 pt-6 border-t border-gray-200">
                         <p className="text-sm text-gray-600 text-center">
-                            Skill {currentSkillIndex + 1} of {allSkills.length} • Question {quizData.currentQuestionIndex + 1} of 5
+                            Question {quizData.currentQuestionIndex + 1} of {currentQuiz.questions.length} for {currentQuiz.techName}
                         </p>
                     </div>
                 </div>
@@ -963,16 +1071,16 @@ Respond ONLY with valid JSON in this exact format:
     const ResultsStep = () => {
         if (!results) return null;
 
-        const chartData = Object.entries(results.categoryScores).map(([category, data]) => ({
-            category: category.replace(' Skills', ''),
-            'Your Score': parseFloat(data.average),
+        const chartData = results.techDetails.map(tech => ({
+            technology: tech.name,
+            'Your Score': parseFloat(results.skillScores[tech.id] || 0),
             'Target Score': results.benchmark.target,
             'Min Required': results.benchmark.min
         }));
 
-        const radarData = Object.entries(results.categoryScores).map(([category, data]) => ({
-            category: category.replace(' Skills', ''),
-            current: parseFloat(data.average),
+        const radarData = results.techDetails.map(tech => ({
+            technology: tech.name,
+            current: parseFloat(results.skillScores[tech.id] || 0),
             target: results.benchmark.target
         }));
 
@@ -985,8 +1093,17 @@ Respond ONLY with valid JSON in this exact format:
                 <div className="bg-gradient-to-r from-emerald-700 to-emerald-600 text-white p-8 rounded-2xl mb-8 shadow-xl">
                     <Award className="w-12 h-12 mb-3" />
                     <h2 className="text-4xl font-bold mb-2">Assessment Complete!</h2>
-                    <p className="text-xl">Here's your personalized skill gap analysis</p>
-                    <p className="text-lg mt-2">Target Role: {userData.targetRole} ({userData.experience} level)</p>
+                    <p className="text-xl">Here's your technology skills gap analysis</p>
+                    <div className="flex items-center gap-4 mt-4">
+                        <p className="text-lg">
+                            {userData.selectedTechnologies.length === 1 
+                                ? `Assessed: 1 technology with 20 questions` 
+                                : `Assessed: ${userData.selectedTechnologies.length} technologies with ${userData.selectedTechnologies.length * 10} questions`}
+                        </p>
+                        <span className="bg-white/30 px-3 py-1 rounded-full text-sm">
+                            {userData.experience} level
+                        </span>
+                    </div>
                 </div>
 
                 {/* Summary Cards */}
@@ -1010,7 +1127,7 @@ Respond ONLY with valid JSON in this exact format:
                         <div className="text-3xl font-bold text-emerald-700">
                             {((results.totalSkills - results.gaps.length) / results.totalSkills * 100).toFixed(0)}%
                         </div>
-                        <div className="text-gray-600 font-medium">Role Ready</div>
+                        <div className="text-gray-600 font-medium">Ready for Role</div>
                         <div className="text-sm text-gray-500 mt-1">Skills at target</div>
                     </div>
                 </div>
@@ -1018,26 +1135,26 @@ Respond ONLY with valid JSON in this exact format:
                 {/* Visualizations */}
                 <div className="grid md:grid-cols-2 gap-8 mb-8">
                     <div className="bg-white p-6 rounded-xl shadow-md">
-                        <h3 className="text-xl font-bold mb-4 text-gray-800">Category Performance</h3>
+                        <h3 className="text-xl font-bold mb-4 text-gray-800">Technology Scores</h3>
                         <ResponsiveContainer width="100%" height={300}>
                             <BarChart data={chartData}>
                                 <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="category" angle={-45} textAnchor="end" height={100} />
+                                <XAxis dataKey="technology" angle={-45} textAnchor="end" height={100} />
                                 <YAxis domain={[0, 5]} />
                                 <Tooltip />
                                 <Legend />
-                                <Bar dataKey="Your Score" fill="#047857" /> {/* emerald-700 */}
-                                <Bar dataKey="Target Score" fill="#10b981" /> {/* emerald-500 */}
+                                <Bar dataKey="Your Score" fill="#047857" />
+                                <Bar dataKey="Target Score" fill="#10b981" />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
 
                     <div className="bg-white p-6 rounded-xl shadow-md">
-                        <h3 className="text-xl font-bold mb-4 text-gray-800">Skill Balance</h3>
+                        <h3 className="text-xl font-bold mb-4 text-gray-800">Skills Balance</h3>
                         <ResponsiveContainer width="100%" height={300}>
                             <RadarChart data={radarData}>
                                 <PolarGrid />
-                                <PolarAngleAxis dataKey="category" />
+                                <PolarAngleAxis dataKey="technology" />
                                 <PolarRadiusAxis domain={[0, 5]} />
                                 <Radar name="Current" dataKey="current" stroke="#047857" fill="#047857" fillOpacity={0.6} />
                                 <Radar name="Target" dataKey="target" stroke="#10b981" fill="#10b981" fillOpacity={0.3} />
@@ -1057,9 +1174,12 @@ Respond ONLY with valid JSON in this exact format:
                             {criticalGaps.map((gap, idx) => (
                                 <div key={idx} className="bg-red-50 p-6 rounded-lg">
                                     <div className="flex justify-between items-start mb-3">
-                                        <div>
-                                            <h4 className="font-bold text-lg text-gray-800">{gap.skill}</h4>
-                                            <p className="text-sm text-gray-600">{gap.category}</p>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-2xl">{gap.icon}</span>
+                                            <div>
+                                                <h4 className="font-bold text-lg text-gray-800">{gap.skill}</h4>
+                                                <p className="text-sm text-gray-600">Technology</p>
+                                            </div>
                                         </div>
                                         <div className="text-right">
                                             <div className="text-2xl font-bold text-red-600">{gap.current}/5</div>
@@ -1081,7 +1201,7 @@ Respond ONLY with valid JSON in this exact format:
                                             <BookOpen className="w-4 h-4" /> Recommended Resources:
                                         </p>
                                         <div className="grid gap-2">
-                                            {getLearningResources(gap.skill, userData.selectedTechnologies).map((resource, ridx) => (
+                                            {getLearningResources(gap.technology).map((resource, ridx) => (
                                                 <a
                                                     key={ridx}
                                                     href={resource.url}
@@ -1111,9 +1231,12 @@ Respond ONLY with valid JSON in this exact format:
                             {importantGaps.map((gap, idx) => (
                                 <div key={idx} className="bg-emerald-50 p-4 rounded-lg">
                                     <div className="flex justify-between items-start mb-2">
-                                        <div className="flex-1">
-                                            <h4 className="font-bold text-gray-800">{gap.skill}</h4>
-                                            <p className="text-sm text-gray-600">{gap.category}</p>
+                                        <div className="flex items-center gap-2 flex-1">
+                                            <span className="text-xl">{gap.icon}</span>
+                                            <div>
+                                                <h4 className="font-bold text-gray-800">{gap.skill}</h4>
+                                                <p className="text-sm text-gray-600">Technology</p>
+                                            </div>
                                         </div>
                                         <div className="text-xl font-bold text-emerald-700">{gap.current}/5</div>
                                     </div>
@@ -1138,9 +1261,9 @@ Respond ONLY with valid JSON in this exact format:
                         <div className="grid md:grid-cols-3 gap-4">
                             {results.strengths.map((strength, idx) => (
                                 <div key={idx} className="bg-emerald-50 p-4 rounded-lg text-center">
+                                    <span className="text-3xl mb-2 block">{strength.icon}</span>
                                     <div className="text-2xl font-bold text-emerald-700 mb-1">{strength.rating}/5</div>
                                     <div className="font-semibold text-gray-800">{strength.skill}</div>
-                                    <div className="text-sm text-gray-600">{strength.category}</div>
                                 </div>
                             ))}
                         </div>
@@ -1188,10 +1311,10 @@ Respond ONLY with valid JSON in this exact format:
                                 <h4 className="text-xl font-bold text-gray-800">Long-term Development (5-6 months)</h4>
                             </div>
                             <ul className="list-disc list-inside space-y-1 text-gray-700">
-                                <li>Build portfolio projects demonstrating your skills</li>
-                                <li>Contribute to open-source projects</li>
-                                <li>Network with professionals in your field</li>
-                                <li>Consider certification if relevant to your role</li>
+                                <li>Build portfolio projects using your strongest technologies</li>
+                                <li>Contribute to open-source projects in your focus areas</li>
+                                <li>Get certified in your target technologies</li>
+                                <li>Network with professionals specializing in these technologies</li>
                             </ul>
                         </div>
                     </div>
@@ -1203,12 +1326,12 @@ Respond ONLY with valid JSON in this exact format:
                         onClick={() => {
                             setStep('intro');
                             setQuizData({
-                                currentCategory: '',
-                                currentSkill: '',
-                                questions: [],
+                                technologyQuizzes: [],
+                                currentQuizIndex: 0,
                                 currentQuestionIndex: 0,
                                 answers: {},
-                                skillScores: {}
+                                skillScores: {},
+                                totalQuestions: 0
                             });
                             setResults(null);
                         }}
@@ -1217,7 +1340,22 @@ Respond ONLY with valid JSON in this exact format:
                         Start New Assessment
                     </button>
                     <button
-                        onClick={() => window.print()}
+                        onClick={() => {
+                            const resultsData = {
+                                user: userData,
+                                scores: results.skillScores,
+                                gaps: results.gaps,
+                                strengths: results.strengths,
+                                date: new Date().toLocaleDateString()
+                            };
+                            const dataStr = JSON.stringify(resultsData, null, 2);
+                            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+                            const exportFileDefaultName = `skill-gap-assessment-${userData.name || 'user'}-${new Date().toISOString().split('T')[0]}.json`;
+                            const linkElement = document.createElement('a');
+                            linkElement.setAttribute('href', dataUri);
+                            linkElement.setAttribute('download', exportFileDefaultName);
+                            linkElement.click();
+                        }}
                         className="flex-1 border-2 border-emerald-600 text-emerald-700 px-6 py-4 rounded-xl font-semibold hover:bg-emerald-50 transition-all duration-300 flex items-center justify-center gap-2 hover:scale-[1.02]"
                     >
                         <Download className="w-5 h-5" /> Save Report
