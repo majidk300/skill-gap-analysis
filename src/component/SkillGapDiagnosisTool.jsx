@@ -665,7 +665,7 @@ Respond ONLY with valid JSON in this exact format:
     };
 
     const IntroStep = () => (
-        <div className="max-w-3xl mx-auto text-center">
+        <div className="max-w-3xl mx-auto text-center mt-10">
             <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-8 rounded-2xl mb-8">
                 <Brain className="w-16 h-16 mx-auto mb-4" />
                 <h1 className="text-4xl font-bold mb-4">AI-Powered Skill Gap Assessment</h1>
@@ -718,7 +718,7 @@ Respond ONLY with valid JSON in this exact format:
     );
 
     const ProfileStep = () => (
-        <div className="max-w-2xl mx-auto bg-white p-8 rounded-2xl shadow-lg">
+        <div className="max-w-2xl mx-auto bg-white p-8 rounded-2xl shadow-lg mt-10">
             <h2 className="text-3xl font-bold mb-6 text-gray-800">Your Profile</h2>
 
             <div className="space-y-6">
@@ -816,7 +816,7 @@ Respond ONLY with valid JSON in this exact format:
         };
 
         return (
-            <div className="max-w-4xl mx-auto bg-white p-8 rounded-2xl shadow-lg">
+            <div className="max-w-4xl mx-auto bg-white p-8 rounded-2xl shadow-lg mt-10">
                 <h2 className="text-3xl font-bold mb-2 text-gray-800">Select Technologies</h2>
                 <p className="text-gray-600 mb-6">Choose the technologies you want to focus on (optional - select all relevant ones)</p>
 
@@ -871,7 +871,7 @@ Respond ONLY with valid JSON in this exact format:
     const QuizStep = () => {
         if (isLoadingQuiz) {
             return (
-                <div className="max-w-2xl mx-auto bg-white p-12 rounded-2xl shadow-lg text-center">
+                <div className="max-w-2xl mx-auto bg-white p-12 rounded-2xl shadow-lg text-center mt-10">
                     <Brain className="w-16 h-16 text-blue-500 mx-auto mb-4 animate-pulse" />
                     <h3 className="text-2xl font-bold mb-2">Generating AI Questions...</h3>
                     <p className="text-gray-600">Creating personalized quiz for {quizData.currentSkill}</p>
@@ -984,7 +984,7 @@ Respond ONLY with valid JSON in this exact format:
         return (
             <div className="max-w-6xl mx-auto">
                 {/* Header */}
-                <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-8 rounded-2xl mb-8">
+                <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-8 rounded-2xl mb-8 mt-10">
                     <Award className="w-12 h-12 mb-3" />
                     <h2 className="text-4xl font-bold mb-2">Assessment Complete!</h2>
                     <p className="text-xl">Here's your personalized skill gap analysis</p>
@@ -1230,7 +1230,7 @@ Respond ONLY with valid JSON in this exact format:
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6 mt-10">
             <div className="container mx-auto py-8">
                 {step === 'intro' && <IntroStep />}
                 {step === 'profile' && <ProfileStep />}
@@ -1243,3 +1243,5 @@ Respond ONLY with valid JSON in this exact format:
 };
 
 export default SkillGapDiagnosisTool;
+
+
