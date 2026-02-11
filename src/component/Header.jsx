@@ -16,19 +16,19 @@ const Header = () => {
 
         {/* Desktop Buttons */}
         <div className="hidden md:flex items-center gap-4">
-          <button
+          <Link to="/login"
             className="px-4 py-2 font-medium transition"
             style={{ color: brandColor }}
           >
             Login
-          </button>
+          </Link>
 
-          <button
+          <Link to="/signup"
             className="px-5 py-2 rounded-lg text-white font-medium transition hover:opacity-90"
             style={{ backgroundColor: brandColor }}
           >
             Sign Up
-          </button>
+          </Link>
         </div>
 
         {/* Mobile Menu Icon */}
