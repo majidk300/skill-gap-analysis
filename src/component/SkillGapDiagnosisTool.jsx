@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { Target, TrendingUp, BookOpen, Award, ArrowRight, CheckCircle, AlertCircle, Download, Brain, Code, Zap, Clock, ChevronRight } from 'lucide-react';
 
@@ -24,6 +24,36 @@ const SkillGapDiagnosisTool = () => {
 
     const [isLoadingQuiz, setIsLoadingQuiz] = useState(false);
     const [results, setResults] = useState(null);
+    const [githubQuestions, setGithubQuestions] = useState(null);
+    const [loadingGithubData, setLoadingGithubData] = useState(false);
+    const [githubError, setGithubError] = useState(null);
+
+    // Load questions from GitHub on component mount
+    useEffect(() => {
+        loadGithubQuestions();
+    }, []);
+
+    const loadGithubQuestions = async () => {
+        setLoadingGithubData(true);
+        setGithubError(null);
+        
+        try {
+            const response = await fetch('https://raw.githubusercontent.com/Azeemahmad01/skillgap-data/main/questions.json');
+            
+            if (!response.ok) {
+                throw new Error('Failed to load questions from GitHub');
+            }
+            
+            const data = await response.json();
+            setGithubQuestions(data);
+            console.log('Successfully loaded questions from GitHub:', data);
+        } catch (error) {
+            console.error('Error loading GitHub questions:', error);
+            setGithubError(error.message);
+        } finally {
+            setLoadingGithubData(false);
+        }
+    };
 
     // Technology options by role
     const technologyOptions = {
@@ -228,8 +258,64 @@ const SkillGapDiagnosisTool = () => {
         'expert': { min: 4.5, target: 5.0 }
     };
 
-    // Generate quiz questions using Claude API
+    // Map technology IDs to category names in GitHub JSON
+    const techToCategoryMap = {
+        'javascript': 'JavaScript/TypeScript',
+        'python': 'Python',
+        'java': 'Java',
+        'react': 'React',
+        'nodejs': 'Node.js',
+        'sql': 'SQL/Databases',
+        'git': 'Git/Version Control',
+        'aws': 'AWS/Cloud',
+        'docker': 'Docker/Kubernetes',
+        'testing': 'Testing/QA'
+    };
+
+    // Get questions from GitHub JSON based on selected technologies
+    const getQuestionsFromGithub = (skill, technologies) => {
+        if (!githubQuestions || !githubQuestions.categories) {
+            return null;
+        }
+
+        // Try to find matching category based on selected technologies
+        for (const techId of technologies) {
+            const categoryName = techToCategoryMap[techId];
+            if (categoryName) {
+                const category = githubQuestions.categories.find(
+                    cat => cat.category.toLowerCase() === categoryName.toLowerCase()
+                );
+                
+                if (category && category.questions) {
+                    // Format questions to match our internal structure
+                    return category.questions.slice(0, 5).map(q => ({
+                        question: q.question,
+                        options: q.options.reduce((acc, opt, idx) => {
+                            const letter = String.fromCharCode(65 + idx); // A, B, C, D
+                            acc[letter] = opt;
+                            return acc;
+                        }, {}),
+                        correct: q.correctAnswer,
+                        difficulty: q.difficulty,
+                        explanation: q.explanation
+                    }));
+                }
+            }
+        }
+
+        return null;
+    };
+
+    // Generate quiz questions using Claude API with GitHub fallback
     const generateQuizQuestions = async (skill, technologies) => {
+        // First, try to get questions from GitHub JSON
+        const githubQs = getQuestionsFromGithub(skill, technologies);
+        if (githubQs && githubQs.length > 0) {
+            console.log('Using questions from GitHub for:', skill);
+            return githubQs;
+        }
+
+        // If GitHub questions not available, use Claude API
         const techContext = technologies.length > 0
             ? `Focus on these technologies: ${technologies.join(', ')}.`
             : '';
@@ -283,7 +369,7 @@ Respond ONLY with valid JSON in this exact format:
             const jsonMatch = textContent.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
                 const parsed = JSON.parse(jsonMatch[0]);
-                return parsed.questions || [];
+                return (parsed.questions || []).slice(0, 5);
             }
 
             // Fallback questions if API fails
@@ -295,7 +381,7 @@ Respond ONLY with valid JSON in this exact format:
     };
 
     const getFallbackQuestions = (skill) => {
-        // Fallback questions in case API fails
+        // Fallback questions in case both GitHub and API fail
         return [
             {
                 question: `What is your experience level with ${skill}?`,
@@ -369,7 +455,7 @@ Respond ONLY with valid JSON in this exact format:
             return allTechs.find(t => t.id === id)?.name;
         }).filter(Boolean);
 
-        const questions = await generateQuizQuestions(firstSkill, techNames);
+        const questions = await generateQuizQuestions(firstSkill, userData.selectedTechnologies);
 
         setQuizData({
             currentCategory: firstCategory,
@@ -434,12 +520,8 @@ Respond ONLY with valid JSON in this exact format:
                 const nextCategory = skills['Technical Skills'].includes(nextSkill) ? 'Technical Skills' : 'Soft Skills';
 
                 setIsLoadingQuiz(true);
-                const techNames = userData.selectedTechnologies.map(id => {
-                    const allTechs = technologyOptions[userData.targetRole];
-                    return allTechs.find(t => t.id === id)?.name;
-                }).filter(Boolean);
 
-                const nextQuestions = await generateQuizQuestions(nextSkill, techNames);
+                const nextQuestions = await generateQuizQuestions(nextSkill, userData.selectedTechnologies);
 
                 setQuizData({
                     currentCategory: nextCategory,
@@ -586,17 +668,29 @@ Respond ONLY with valid JSON in this exact format:
     };
 
     const IntroStep = () => (
-        <div className="max-w-3xl mx-auto texif (jsonMatch) {
-  const parsed = JSON.parse(jsonMatch[0]);
-
-  // HARD LIMIT — never more than 5 per skill
-  return (parsed.questions || []).slice(0, 5);
-}
-t-center">
+        <div className="max-w-3xl mx-auto text-center">
             <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-8 rounded-2xl mb-8">
                 <Brain className="w-16 h-16 mx-auto mb-4" />
                 <h1 className="text-4xl font-bold mb-4">AI-Powered Skill Gap Assessment</h1>
                 <p className="text-xl">Take adaptive quizzes to identify your skill gaps and get personalized learning paths</p>
+                
+                {loadingGithubData && (
+                    <div className="mt-4 bg-white/20 px-4 py-2 rounded-lg inline-block">
+                        <p className="text-sm">Loading question bank...</p>
+                    </div>
+                )}
+                
+                {githubError && (
+                    <div className="mt-4 bg-red-500/30 px-4 py-2 rounded-lg inline-block">
+                        <p className="text-sm">⚠️ Using fallback questions (GitHub data unavailable)</p>
+                    </div>
+                )}
+                
+                {githubQuestions && !loadingGithubData && (
+                    <div className="mt-4 bg-green-500/30 px-4 py-2 rounded-lg inline-block">
+                        <p className="text-sm">✓ Question bank loaded successfully</p>
+                    </div>
+                )}
             </div>
 
             <div className="grid md:grid-cols-3 gap-6 mb-8">
@@ -635,7 +729,7 @@ t-center">
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Your Name</label>
                     <input
                         type="text"
-                        defaultValue={userData.name} // Use defaultValue instead of value
+                        defaultValue={userData.name}
                         onBlur={(e) => setUserData({ ...userData, name: e.target.value })}
                         className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
                         placeholder="John Doe"
@@ -643,20 +737,16 @@ t-center">
                 </div>
 
                 <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Current Role
-                    </label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Current Role</label>
                     <input
                         type="text"
-                        /* Use defaultValue so the input is still editable but doesn't 
-                           constantly trigger re-renders via the 'value' prop */
                         defaultValue={userData.currentRole}
-                        /* Update state only when the user leaves the field */
                         onBlur={(e) => setUserData({ ...userData, currentRole: e.target.value })}
                         className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
                         placeholder="e.g., Junior Developer, Student"
                     />
                 </div>
+
                 <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Target Role *</label>
                     <select
@@ -1143,7 +1233,7 @@ t-center">
     };
 
     return (
-        <div className="min-h-screen bg-white p-6 mt-10">
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
             <div className="container mx-auto py-8">
                 {step === 'intro' && <IntroStep />}
                 {step === 'profile' && <ProfileStep />}
