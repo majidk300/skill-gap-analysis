@@ -313,8 +313,11 @@ const SkillGapDiagnosisTool = () => {
         'documentation': 'Documentation'
     };
 
+
+
+    
     // Get questions from GitHub JSON based on selected technology and difficulty level
-    const getQuestionsFromGithub = (techId, difficulty, numberOfQuestions) => {
+    const getQuestionsFromGithub = (techId, numberOfQuestions) => {
         if (!githubQuestions || !githubQuestions.categories) {
             return null;
         }
@@ -331,33 +334,40 @@ const SkillGapDiagnosisTool = () => {
         );
         
         if (category && category.questions) {
-            // Filter questions by difficulty level based on user experience
-            let filteredQuestions = category.questions;
+            // Get questions based on experience level
+            let questionsArray = [];
             
-            // Map experience level to difficulty
+            // Map experience level to difficulty key in JSON
             if (userData.experience === 'entry') {
-                filteredQuestions = category.questions.filter(q => 
-                    q.difficulty && q.difficulty.toLowerCase() === 'beginner'
-                );
+                questionsArray = category.questions.entry || [];
             } else if (userData.experience === 'intermediate') {
-                filteredQuestions = category.questions.filter(q => 
-                    q.difficulty && q.difficulty.toLowerCase() === 'intermediate'
-                );
-            } else if (userData.experience === 'senior' || userData.experience === 'expert') {
-                filteredQuestions = category.questions.filter(q => 
-                    q.difficulty && q.difficulty.toLowerCase() === 'advanced'
-                );
+                questionsArray = category.questions.intermediate || [];
+            } else if (userData.experience === 'senior') {
+                questionsArray = category.questions.senior || [];
+                // If no senior questions, try expert
+                if (questionsArray.length === 0) {
+                    questionsArray = category.questions.expert || [];
+                }
+            } else if (userData.experience === 'expert') {
+                questionsArray = category.questions.expert || [];
+                // If no expert questions, try senior
+                if (questionsArray.length === 0) {
+                    questionsArray = category.questions.senior || [];
+                }
             }
 
-            // If no questions match the difficulty, fall back to all questions
-            if (filteredQuestions.length === 0) {
-                filteredQuestions = category.questions;
+            // If no questions match the difficulty, use entry as fallback
+            if (questionsArray.length === 0) {
+                questionsArray = category.questions.entry || [];
+                console.log(`⚠️ No ${userData.experience} level questions found for ${techId}, using entry level`);
             }
 
             // Randomly select the required number of questions
-            const shuffled = [...filteredQuestions].sort(() => 0.5 - Math.random());
+            const shuffled = [...questionsArray].sort(() => 0.5 - Math.random());
             const selected = shuffled.slice(0, numberOfQuestions);
             
+            console.log(`✅ Selected ${selected.length} ${userData.experience} level questions for ${techId} (IDs: ${selected.map(q => q.id).join(', ')})`);
+
             // Format questions to match our internal structure
             return selected.map(q => ({
                 question: q.question,
@@ -367,98 +377,40 @@ const SkillGapDiagnosisTool = () => {
                     return acc;
                 }, {}),
                 correct: q.correctAnswer,
-                difficulty: q.difficulty || userData.experience,
+                difficulty: userData.experience === 'entry' ? 'beginner' : 
+                           userData.experience === 'intermediate' ? 'intermediate' : 'advanced',
                 explanation: q.explanation,
-                technology: techId
+                technology: techId,
+                id: q.id
             }));
         }
 
         return null;
     };
 
-    // Generate quiz questions using Claude API with GitHub fallback
+    // Generate quiz questions from GitHub JSON only
     const generateTechnologyQuizQuestions = async (techId, numberOfQuestions) => {
-        // First, try to get questions from GitHub JSON
-        const githubQs = getQuestionsFromGithub(techId, userData.experience, numberOfQuestions);
-        if (githubQs && githubQs.length >= numberOfQuestions) {
+        // Get questions from GitHub JSON
+        const githubQs = getQuestionsFromGithub(techId, numberOfQuestions);
+        if (githubQs && githubQs.length > 0) {
             console.log(`Using ${githubQs.length} questions from GitHub for:`, techId);
             return githubQs;
         }
 
-        // If GitHub questions not available or insufficient, use Claude API
+        // If no GitHub questions available, use fallback
+        console.log(`⚠️ No GitHub questions found for ${techId}, using fallback questions`);
         const techName = technologyOptions[userData.targetRole]?.find(t => t.id === techId)?.name || techId;
         
-        // Determine difficulty based on experience level
-        let difficultyLevels;
+        let difficultyLevel;
         if (userData.experience === 'entry') {
-            difficultyLevels = 'beginner';
+            difficultyLevel = 'beginner';
         } else if (userData.experience === 'intermediate') {
-            difficultyLevels = 'intermediate';
+            difficultyLevel = 'intermediate';
         } else {
-            difficultyLevels = 'advanced';
+            difficultyLevel = 'advanced';
         }
-
-        const prompt = `Generate ${numberOfQuestions} multiple-choice quiz questions to assess proficiency in "${techName}" for a ${userData.targetRole} position with ${userData.experience} level experience.
-
-Requirements:
-- All questions must be at ${difficultyLevels} difficulty level
-- Each question should be practical and scenario-based
-- Provide four answer options (A, B, C, D)
-- Include the correct answer (letter only)
-- Mark difficulty as "${difficultyLevels}"
-
-Respond ONLY with valid JSON in this exact format:
-{
-  "questions": [
-    {
-      "question": "Question text here?",
-      "options": {
-        "A": "First option",
-        "B": "Second option", 
-        "C": "Third option",
-        "D": "Fourth option"
-      },
-      "correct": "A",
-      "difficulty": "${difficultyLevels}"
-    }
-  ]
-}`;
-
-        try {
-            const response = await fetch("https://api.anthropic.com/v1/messages", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "x-api-key": "YOUR_ANTHROPIC_API_KEY", // Replace with actual API key
-                    "anthropic-version": "2023-06-01"
-                },
-                body: JSON.stringify({
-                    model: "claude-3-sonnet-20240229",
-                    max_tokens: 2000,
-                    messages: [
-                        { role: "user", content: prompt }
-                    ],
-                })
-            });
-
-            const data = await response.json();
-            const textContent = data.content.find(c => c.type === "text")?.text || "";
-
-            // Clean up the response and parse JSON
-            const jsonMatch = textContent.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                const parsed = JSON.parse(jsonMatch[0]);
-                const questions = (parsed.questions || []).slice(0, numberOfQuestions);
-                // Add technology ID to each question
-                return questions.map(q => ({ ...q, technology: techId }));
-            }
-
-            // Fallback questions if API fails
-            return getFallbackQuestions(techName, numberOfQuestions, difficultyLevels, techId);
-        } catch (error) {
-            console.error("Error generating quiz:", error);
-            return getFallbackQuestions(techName, numberOfQuestions, userData.experience, techId);
-        }
+        
+        return getFallbackQuestions(techName, numberOfQuestions, difficultyLevel, techId);
     };
 
     const getFallbackQuestions = (techName, numberOfQuestions, difficulty, techId) => {
@@ -476,7 +428,8 @@ Respond ONLY with valid JSON in this exact format:
                 },
                 correct: "D",
                 difficulty: difficulties[i % difficulties.length],
-                technology: techId
+                technology: techId,
+                id: i + 1
             });
         }
         
@@ -544,7 +497,7 @@ Respond ONLY with valid JSON in this exact format:
 
         const questionPoints = points[currentQuestion.difficulty] || 1;
 
-        const answerKey = `${currentQuiz.techId}_q${quizData.currentQuestionIndex}`;
+        const answerKey = `${currentQuiz.techId}_q${currentQuestion.id || quizData.currentQuestionIndex}`;
         
         const updatedAnswers = {
             ...quizData.answers,
@@ -554,7 +507,8 @@ Respond ONLY with valid JSON in this exact format:
                 isCorrect,
                 points: questionPoints,
                 techId: currentQuiz.techId,
-                questionIndex: quizData.currentQuestionIndex
+                questionIndex: quizData.currentQuestionIndex,
+                questionId: currentQuestion.id
             }
         };
 
@@ -961,7 +915,7 @@ Respond ONLY with valid JSON in this exact format:
             return (
                 <div className="max-w-2xl mx-auto bg-white p-12 rounded-2xl shadow-xl text-center mt-10">
                     <Brain className="w-16 h-16 text-emerald-700 mx-auto mb-4 animate-pulse" />
-                    <h3 className="text-2xl font-bold mb-2 text-gray-800">Generating AI Questions...</h3>
+                    <h3 className="text-2xl font-bold mb-2 text-gray-800">Generating Questions...</h3>
                     <p className="text-gray-600">
                         Creating {userData.selectedTechnologies.length === 1 ? '20' : '10'} questions for each technology at your experience level
                     </p>
