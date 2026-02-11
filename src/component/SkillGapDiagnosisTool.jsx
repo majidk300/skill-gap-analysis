@@ -36,9 +36,10 @@ const SkillGapDiagnosisTool = () => {
     const loadGithubQuestions = async () => {
         setLoadingGithubData(true);
         setGithubError(null);
-        
+
+
         try {
-            const response = await fetch('https://raw.githubusercontent.com/Azeemahmad01/skillgap-data/main/questions.json');
+            const response = await fetch('https://raw.githubusercontent.com/majidk300/skillgap-data/main/questions.json');
             
             if (!response.ok) {
                 throw new Error('Failed to load questions from GitHub');
@@ -450,10 +451,6 @@ Respond ONLY with valid JSON in this exact format:
         const firstSkill = allSkills[0];
         const firstCategory = skills['Technical Skills'].includes(firstSkill) ? 'Technical Skills' : 'Soft Skills';
 
-        const techNames = userData.selectedTechnologies.map(id => {
-            const allTechs = technologyOptions[userData.targetRole];
-            return allTechs.find(t => t.id === id)?.name;
-        }).filter(Boolean);
 
         const questions = await generateQuizQuestions(firstSkill, userData.selectedTechnologies);
 
