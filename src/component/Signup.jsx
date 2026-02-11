@@ -28,7 +28,7 @@ const Signup = () => {
 
   return (
     <>
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 mt-5">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 mt-15">
         <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8">
 
           {/* Header */}
