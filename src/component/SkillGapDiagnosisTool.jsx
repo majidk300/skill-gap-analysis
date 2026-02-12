@@ -313,9 +313,6 @@ const SkillGapDiagnosisTool = () => {
         'documentation': 'Documentation'
     };
 
-
-
-    
     // Get questions from GitHub JSON based on selected technology and difficulty level
     const getQuestionsFromGithub = (techId, numberOfQuestions) => {
         if (!githubQuestions || !githubQuestions.categories) {
