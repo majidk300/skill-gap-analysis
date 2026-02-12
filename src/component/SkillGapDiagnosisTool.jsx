@@ -687,7 +687,7 @@ const SkillGapDiagnosisTool = () => {
         <div className="max-w-3xl mx-auto text-center mt-10">
             <div className="bg-gradient-to-r from-emerald-700 to-emerald-600 text-white p-8 rounded-2xl mb-8 shadow-xl">
                 <Brain className="w-16 h-16 mx-auto mb-4" />
-                <h1 className="text-4xl font-bold mb-4">AI-Powered Technology Skills Assessment</h1>
+                <h1 className="text-4xl font-bold mb-4">Skills Assessment</h1>
                 <p className="text-xl">Test your knowledge with adaptive quizzes tailored to your experience level</p>
                 
                 {loadingGithubData && (
