@@ -418,10 +418,10 @@ const SkillGapDiagnosisTool = () => {
             fallbackQuestions.push({
                 question: `What is your experience level with ${techName}? (Question ${i + 1})`,
                 options: {
-                    A: "No experience - I'm just starting to learn",
-                    B: "Basic knowledge - I can handle simple tasks",
-                    C: "Intermediate - I use this regularly in projects",
-                    D: "Advanced - I can mentor others in this skill"
+                    A: "This is dummy data- No experience - I'm just starting to learn",
+                    B: "This is dummy data- Basic knowledge - I can handle simple tasks",
+                    C: "This is dummy data- Intermediate - I use this regularly in projects",
+                    D: "This is dummy data- Advanced - I can mentor others in this skill."
                 },
                 correct: "D",
                 difficulty: difficulties[i % difficulties.length],
